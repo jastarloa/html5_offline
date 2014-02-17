@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>HTML Offline</title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <script type="text/javascript" src="../js/libs/jquery-1.9.0/jquery.min.js"></script>
+        <script type="text/javascript">
+            //<![CDATA[
+            $(document).ready(function() {
+
+                // TODO Lo suyo sería hacer o buscar librerías .js con métodos para facilitar las tareas más habituales:
+                // - listar todo el arbol de directorios
+                // - listar un subárbol
+                // - borrar subarbol de directorios o todo el arbol de directorios, recursivamente
+                // - borrar un fichero concreto
+                // - crear directorios indicando la ruta completa (crearia automaticamente los directorios intermedios)
+                // - crear / borrar un fichero indicando su ruta completa
+                // - escribir el contenido de un fichero indicando su ruta completa, pasando un string o algo
+                // - leer el contenido de un fichero indicando su ruta completa, pasando un string o algo
+                // - obtener la url local de un fichero (la que comienza por filesystem://)
+                // - descargar mediante AJAX una URL externa a un fichero local concreto.
+                //      Como interesa para los SCORMs, interesaría poder pasar una lista de URLs remotas todas ellas
+                //      con una subruta relativa entre sí, que se indicaría; y en qué directorio local se quiere descargar
+                //      todos esos ficheros relativos. Y esto lo descargaría automáticamente.
+
+                function toArray(list) {
+                    return Array.prototype.slice.call(list || [], 0);
+                }
+
+                window.requestFileSystem = window.requestFileSystem || window.webkitRequestFileSystem;
+                var fs = null;
+
+                function errorHandler(e) {
+                    var msg = '';
+                    switch (e.code) {
+                        case FileError.QUOTA_EXCEEDED_ERR:
+                            msg = 'QUOTA_EXCEEDED_ERR';
+                            break;
+                        case FileError.NOT_FOUND_ERR:
+                            msg = 'NOT_FOUND_ERR';
+                            break;
+                        case FileError.SECURITY_ERR:
+                            msg = 'SECURITY_ERR';
+                            break;
+                        case FileError.INVALID_MODIFICATION_ERR:
+                            msg = 'INVALID_MODIFICATION_ERR';
+                            break;
+                        case FileError.INVALID_STATE_ERR:
+                            msg = 'INVALID_STATE_ERR';
+                            break;
+                        default:
+                            msg = 'Unknown Error';
+                            break;
+                    }
+                    ;
+                    $("#fsys_console").text('Error: ' + msg);
+                }
+
+                function initFS() {
+                    // TODO Probar a que sea window.PERSISTENT
+                    /*
+                     window.webkitStorageInfo.requestQuota(
+                     window.PERSISTENT,
+                     20*1024*1024,
+                     function(grantedBytes) {
+                     window.requestFileSystem(window.PERSISTENT, grantedBytes,
+                     function(filesystem) {
+                     fs = filesystem;
+                     }, errorHandler);
+                     },
+                     errorHandler
+                     );
+                     */
+                    window.requestFileSystem(window.TEMPORARY, 20 * 1024 * 1024, function(filesystem) {
+                        fs = filesystem;
+
+                        // Si hay algo en el sistema de ficheros, lo muestra
+                        var dirReader = fs.root.createReader();
+                        var entries = [];
+
+                        // Call the reader.readEntries() until no more results are returned.
+                        var readEntries = function() {
+                            dirReader.readEntries(function(results) {
+                                if (!results.length) {
+                                    listResults(entries.sort());
+                                } else {
+                                    entries = entries.concat(toArray(results));
+                                    readEntries();
+                                }
+                            }, errorHandler);
+                        };
+                        readEntries(); // Start reading dirs.
+
+                    }, errorHandler);
+                }
+
+                function createDir(rootDirEntry, folders) {
+                    // Throw out './' or '/' and move on to prevent something like '/foo/.//bar'.
+                    if (folders[0] == '.' || folders[0] == '') {
+                        folders = folders.slice(1);
+                    }
+                    rootDirEntry.getDirectory(folders[0], {create: true}, function(dirEntry) {
+                        // Recursively add the new subfolder (if we still have another to create).
+                        if (folders.length) {
+                            createDir(dirEntry, folders.slice(1));
+                        }
+                    }, errorHandler);
+                }
+
+                function listResults(entries) {
+                    var fragment = document.createDocumentFragment();
+
+                    entries.forEach(function(entry, i) {
+                        var img = entry.isDirectory ? '<img src="icon-folder.gif">' :
+                                '<img src="icon-file.gif">';
+                        var li = document.createElement('li');
+                        li.innerHTML = [img, '<span>', entry.name, '</span>'].join('');
+                        fragment.appendChild(li);
+                    });
+
+                    document.querySelector('#fsys_console').appendChild(fragment);
+                }
+
+                // Initiate filesystem on page load.
+                if (window.requestFileSystem) {
+                    initFS();
+                }
+
+                $("#btn_download_img").click(function(e) {
+                    if (!fs) {
+                        return;
+                    }
+                    createDir(fs.root, 'dir1/dir1_1/'.split('/'));
+                    //fs.root.getFile('log.txt', {create: true}, null, errorHandler);
+                    $("#fsys_console").text('Files created.');
+                });
+            });
+            //]]>
+        </script>
+    </head>
+    <body>
+        <h2>Generating URLs to File Resources</h2>
+        <div>
+            <input id="btn_download_img" name="btn_download_img_name" type="button" value="Descargar imagen a local" />
+            <div><output id="fsys_console">PPP</output></div>
+        </div>
+    </body>
+</html>
